@@ -1,7 +1,7 @@
 "use client";
 import Tabs from "./tabs/Tabs";
 import ActionsBar from "./tabs/ActionsBar";
-import MonitoringPanel from "./tabs/MonitoringPanel";
+// import MonitoringPanel from "./tabs/MonitoringPanel";
 
 export default function ResultsPanel() {
   return (
@@ -11,7 +11,7 @@ export default function ResultsPanel() {
       </div>
       <Tabs />
       <ActionsBar />
-      <MonitoringPanel />
+      {/* <MonitoringPanel /> */}
     </div>
   );
 }

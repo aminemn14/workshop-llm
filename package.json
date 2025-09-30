@@ -12,7 +12,10 @@
     "@heroicons/react": "^2.1.5",
     "@supabase/ssr": "^0.7.0",
     "@supabase/supabase-js": "^2.58.0",
+    "canvas": "^3.2.0",
     "next": "15.5.4",
+    "pdf-parse": "^1.1.1",
+    "pdfjs-dist": "^5.4.149",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "zustand": "^4.5.5"
