@@ -1,26 +1,112 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
+@layer base {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --bg: #f7f7f9;
+    --fg: #0a0a0a;
+    --card: #ffffff;
+    --muted: #f3f3f6;
+    --border: #d9d9dd;
+    --blue: #1f64c9;
+    --grayx: #c5c5c8;
+    --success: #23b26e;
+    --warning: #f0ad4e;
+    --neutral: #6b7280;
+  }
+  .dark {
+    --bg: #0c0c0f;
+    --fg: #e5e7eb;
+    --card: #141419;
+    --muted: #0f0f14;
+    --border: #2a2a31;
+  }
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto,
+      Noto Sans, Ubuntu, Cantarell, Helvetica Neue, Arial, "Apple Color Emoji",
+      "Segoe UI Emoji";
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@layer utilities {
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+  }
+  .muted {
+    background: var(--muted);
+  }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.875rem;
+    border-radius: 0.375rem;
+    border: 1px solid transparent;
+    font-size: 0.875rem;
+    font-weight: 500;
+  }
+  .btn:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--border);
+  }
+  .btn:disabled {
+    opacity: 0.5;
+    pointer-events: none;
+  }
+  .btn-blue {
+    background: #1f64c9;
+    color: #fff;
+  }
+  .btn-blue:hover {
+    background: #1b58b0;
+  }
+  .btn-gray {
+    background: #c5c5c8;
+    color: #000;
+  }
+  .btn-gray:hover {
+    background: #b3b3b7;
+  }
+  .btn-green {
+    background: #23b26e;
+    color: #fff;
+  }
+  .btn-green:hover {
+    background: #1d985c;
+  }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.125rem 0.5rem;
+    font-size: 0.75rem;
+    border-radius: 9999px;
+    border: 1px solid var(--border);
+    background: var(--card);
+  }
+  .scrollbar {
+    scrollbar-width: thin;
+  }
+  .scrollbar::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  .scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .scrollbar::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 8px;
+  }
+  .scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #c1c1c6;
+  }
 }
