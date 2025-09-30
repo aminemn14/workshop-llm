@@ -79,6 +79,8 @@ type Store = {
   setLLMData: (messages: { role: "system" | "user" | "assistant"; content: string }[], commandData: Record<string, unknown>) => void;
   setUsageAndCosts: (usage: { prompt_tokens: number; completion_tokens: number; total_tokens: number } | null, model?: string | null) => void;
   analyzeFiles: (files: File[]) => Promise<void>;
+  completeProcessingSuccess: () => void;
+  completeProcessingError: () => void;
 };
 
 const initialSteps: Step[] = [
@@ -197,7 +199,7 @@ export const useStore = create<Store>()(
         return;
       }
 
-      // Déclenche la progression UI
+      // Déclenche la progression UI (jusqu'à l'étape analyze)
       get().startProcessing();
       const approxTokens = Math.max(1, Math.round(first.size / 4));
       get().appendLog("INFO", `Estimation tokens (PDF): ~${approxTokens.toLocaleString()}`);
@@ -232,10 +234,14 @@ export const useStore = create<Store>()(
       const dt = Math.round(performance.now() - t0);
       get().appendLog("INFO", `Analyse terminée en ${dt} ms`);
       console.log("[analyzeFiles] done", { summaryLen: data.summary?.length });
+      // Finaliser la progression UNIQUEMENT quand les données sont prêtes
+      get().completeProcessingSuccess();
     } catch (err: any) {
       const message = err?.message || String(err);
       get().appendLog("ERROR", `Erreur analyse: ${message}`);
       console.error("[analyzeFiles] error", err);
+      // Marquer la progression en erreur immédiatement
+      get().completeProcessingError();
     }
   },
 
@@ -249,17 +255,13 @@ export const useStore = create<Store>()(
       steps: initialSteps.map((s) => ({ ...s, status: "idle" })),
     });
     console.log("[progress] start");
-    const fail = Math.random() < 0.1;
-    const stepIds = ["prepare", "parse", "analyze", "finalize"] as const;
-    const durations = [800, 1200, 1500, 900];
+    // Exécuter seulement jusqu'à l'étape "analyze". "finalize" sera déclenchée lorsque les données seront prêtes.
+    const stepIds = ["prepare", "parse", "analyze"] as const;
+    const durations = [800, 1200, 1500];
     let idx = 0;
 
     const runNext = () => {
-      if (idx >= stepIds.length) {
-        set({ processing: false });
-        console.log("[progress] all done");
-        return;
-      }
+      if (idx >= stepIds.length) return;
       const current = stepIds[idx];
       set({
         steps: get().steps.map((s) =>
@@ -269,17 +271,6 @@ export const useStore = create<Store>()(
       get().appendLog("INFO", `Start: ${current}`);
       console.log("[progress] step start", current);
       setTimeout(() => {
-        if (fail && current === "analyze") {
-          set({
-            steps: get().steps.map((s) =>
-              s.id === current ? { ...s, status: "error" } : s
-            ),
-            processing: false,
-          });
-          get().appendLog("ERROR", `Erreur dans l'étape: ${current}`);
-          console.error("[progress] step error", current);
-          return;
-        }
         set({
           steps: get().steps.map((s) =>
             s.id === current ? { ...s, status: "done" } : s
@@ -304,6 +295,30 @@ export const useStore = create<Store>()(
       });
     };
     runNext();
+  },
+
+  // Marque la dernière étape comme DONE et termine le traitement
+  completeProcessingSuccess: () => {
+    set({
+      steps: get().steps.map((s) =>
+        s.id === "finalize" ? { ...s, status: "done" } : s
+      ),
+      processing: false,
+    });
+    get().appendLog("INFO", "Done: finalize");
+    console.log("[progress] finalize done");
+  },
+
+  // Marque la dernière étape comme ERROR et termine le traitement
+  completeProcessingError: () => {
+    set({
+      steps: get().steps.map((s) =>
+        s.id === "finalize" ? { ...s, status: "error" } : s
+      ),
+      processing: false,
+    });
+    get().appendLog("ERROR", "Erreur dans l'étape: finalize");
+    console.error("[progress] finalize error");
   },
 
   retryProcessing: () => {
