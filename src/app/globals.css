@@ -12,6 +12,11 @@
     --success: #23b26e;
     --warning: #f0ad4e;
     --neutral: #6b7280;
+
+    /* boutons gris (clair) */
+    --btn-gray-bg: #c5c5c8;
+    --btn-gray-bg-hover: #b3b3b7;
+    --btn-gray-fg: #000;
   }
   .dark {
     --bg: #0c0c0f;
@@ -19,6 +24,11 @@
     --card: #141419;
     --muted: #0f0f14;
     --border: #2a2a31;
+
+    /* boutons gris (sombre) */
+    --btn-gray-bg: #2f3138;
+    --btn-gray-bg-hover: #3a3c45;
+    --btn-gray-fg: #e5e7eb;
   }
   html {
     -webkit-font-smoothing: antialiased;
@@ -30,6 +40,8 @@
     font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto,
       Noto Sans, Ubuntu, Cantarell, Helvetica Neue, Arial, "Apple Color Emoji",
       "Segoe UI Emoji";
+    /* espace pour la barre de statut fixe en bas (h-14 = 56px) */
+    padding-bottom: 30px;
   }
 }
 
@@ -69,11 +81,12 @@
     background: #1b58b0;
   }
   .btn-gray {
-    background: #c5c5c8;
-    color: #000;
+    background: var(--btn-gray-bg);
+    color: var(--btn-gray-fg);
+    border-color: var(--border);
   }
   .btn-gray:hover {
-    background: #b3b3b7;
+    background: var(--btn-gray-bg-hover);
   }
   .btn-green {
     background: #23b26e;
