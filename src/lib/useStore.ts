@@ -225,7 +225,7 @@ export const useStore = create<Store>()(
       name: "workshop-llm-store",
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
-        apiKey: state.apiKey,
+        // apiKey: state.apiKey,
         provider: state.provider,
         useLLM: state.useLLM,
         dark: state.dark,
