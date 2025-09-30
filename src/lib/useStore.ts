@@ -181,7 +181,7 @@ export const useStore = create<Store>()(
         const order = name.slice(underscore + 1, end);
         if (order) set({ clientOrder: order });
       }
-      set({ activeTab: "logs" });
+      // set({ activeTab: "logs" });
       const { useLLM, provider } = get();
       get().appendLog("INFO", `Déclenchement analyse: ${first.name}`);
       get().appendLog("DEBUG", `Paramètres: useLLM=${useLLM}`);
