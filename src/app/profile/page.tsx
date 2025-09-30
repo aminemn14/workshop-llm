@@ -3,6 +3,7 @@
 import React from 'react';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
 import { useAuth } from '@/hooks/useAuth';
+import ApiKeysManager from '@/components/ApiKeysManager';
 
 export default function ProfilePage() {
   const { user, loading } = useRequireAuth();
@@ -74,6 +75,10 @@ export default function ProfilePage() {
                 </p>
               </div>
             </div>
+          </div>
+
+          <div className="mt-8">
+            <ApiKeysManager />
           </div>
 
           <div className="mt-8 space-y-4">
