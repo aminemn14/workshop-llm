@@ -65,9 +65,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: txt }, { status: resp.status });
     }
     const json = await resp.json();
-    const content = json?.choices?.[0]?.message?.content;
+    const choice = json?.choices?.[0];
+    const content = choice?.message?.content;
     const summary = typeof content === "string" ? content : JSON.stringify(content);
-    return NextResponse.json({ summary });
+    const messages = [
+      { role: "system", content: system },
+      { role: "user", content: userPrompt },
+      { role: "assistant", content: summary },
+    ];
+    const usage = json?.usage ?? null;
+    const model = json?.model ?? "openai/gpt-4o-mini";
+    const commandData = { extractedTextLength: trimmed.length };
+    return NextResponse.json({ summary, messages, usage, model, commandData });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message || String(e) }, { status: 500 });
   }

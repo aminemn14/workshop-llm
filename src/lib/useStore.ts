@@ -9,7 +9,7 @@ export type Step = {
   status: StepStatus;
 };
 
-export type TabKey = "summary" | "config" | "preimport" | "logs" | "debug";
+export type TabKey = "summary" | "config" | "preimport" | "logs" | "json" | "costs";
 
 export type ProviderKey = "openai" | "anthropic" | "local" | "openrouter";
 
@@ -48,6 +48,16 @@ type Store = {
   autoScrollLogs: boolean;
   logRotationMax: number;
 
+  // Données JSON/LLM
+  llmMessages: { role: "system" | "user" | "assistant"; content: string }[];
+  commandData: Record<string, unknown>;
+  usage: { prompt_tokens: number; completion_tokens: number; total_tokens: number } | null;
+  model: string | null;
+  // Coûts (calculés côté client, en USD)
+  costInputUSD: number;
+  costOutputUSD: number;
+  costTotalUSD: number;
+
   setFiles: (files: File[]) => void;
   clearFiles: () => void;
   setActiveTab: (tab: TabKey) => void;
@@ -66,6 +76,8 @@ type Store = {
   toggleDark: () => void;
   setClientOrder: (v: string) => void;
   setSummaryText: (v: string) => void;
+  setLLMData: (messages: { role: "system" | "user" | "assistant"; content: string }[], commandData: Record<string, unknown>) => void;
+  setUsageAndCosts: (usage: { prompt_tokens: number; completion_tokens: number; total_tokens: number } | null, model?: string | null) => void;
   analyzeFiles: (files: File[]) => Promise<void>;
 };
 
@@ -97,6 +109,13 @@ export const useStore = create<Store>()(
   logSearch: "",
   autoScrollLogs: true,
   logRotationMax: 1000,
+  llmMessages: [],
+  commandData: {},
+  usage: null,
+  model: null,
+  costInputUSD: 0,
+  costOutputUSD: 0,
+  costTotalUSD: 0,
 
   setFiles: (files) => set({ files }),
   clearFiles: () => set({ files: [] }),
@@ -127,6 +146,27 @@ export const useStore = create<Store>()(
 
   setClientOrder: (clientOrder) => set({ clientOrder }),
   setSummaryText: (summaryText) => set({ summaryText }),
+
+  setLLMData: (messages, commandData) => set({ llmMessages: messages, commandData }),
+
+  setUsageAndCosts: (usage, model) => {
+    const pricingPerMTokens: Record<string, { inputUSD: number; outputUSD: number }> = {
+      // Prix par 1M tokens (valeurs indicatives, ajustables)
+      "openai/gpt-4o-mini": { inputUSD: 0.15, outputUSD: 0.60 },
+      "openai/gpt-4o": { inputUSD: 5.0, outputUSD: 15.0 },
+    };
+    const selectedModel = model ?? get().model ?? "openai/gpt-4o-mini";
+    const pricing = pricingPerMTokens[selectedModel] || { inputUSD: 0, outputUSD: 0 };
+    let costIn = 0;
+    let costOut = 0;
+    let total = 0;
+    if (usage) {
+      costIn = (usage.prompt_tokens / 1_000_000) * pricing.inputUSD;
+      costOut = (usage.completion_tokens / 1_000_000) * pricing.outputUSD;
+      total = costIn + costOut;
+    }
+    set({ usage: usage || null, model: selectedModel, costInputUSD: costIn, costOutputUSD: costOut, costTotalUSD: total });
+  },
 
   analyzeFiles: async (files: File[]) => {
     if (!files || files.length === 0) return;
@@ -175,8 +215,20 @@ export const useStore = create<Store>()(
         const text = await res.text();
         throw new Error(`HTTP ${res.status} ${res.statusText} - ${text}`);
       }
-      const data = (await res.json()) as { summary: string };
+      const data = (await res.json()) as {
+        summary: string;
+        messages?: { role: "system" | "user" | "assistant"; content: string }[];
+        usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number };
+        model?: string;
+        commandData?: Record<string, unknown>;
+      };
       set({ summaryText: data.summary });
+      // Enregistrer JSON et coûts
+      get().setLLMData(
+        data.messages || [],
+        data.commandData || { orderId: get().clientOrder }
+      );
+      get().setUsageAndCosts(data.usage || null, data.model || undefined);
       const dt = Math.round(performance.now() - t0);
       get().appendLog("INFO", `Analyse terminée en ${dt} ms`);
       console.log("[analyzeFiles] done", { summaryLen: data.summary?.length });
