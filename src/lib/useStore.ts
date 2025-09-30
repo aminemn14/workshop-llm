@@ -142,9 +142,12 @@ export const useStore = create<Store>()(
         if (order) set({ clientOrder: order });
       }
       set({ activeTab: "logs" });
-      const { useLLM } = get();
+      const { useLLM, provider } = get();
       get().appendLog("INFO", `Déclenchement analyse: ${first.name}`);
       get().appendLog("DEBUG", `Paramètres: useLLM=${useLLM}`);
+      const providerLabel = provider === "openrouter" ? "OpenRouter" : provider === "openai" ? "OpenAI" : provider === "anthropic" ? "Anthropic" : "Local";
+      get().appendLog("INFO", `Fournisseur LLM sélectionné: ${providerLabel}`);
+      // get().appendLog("INFO", "Modèle (tests): GPT-4o Mini");
       console.log("[analyzeFiles] start", { file: first.name, useLLM });
 
       // Si LLM désactivé, ne pas lancer progression ni appel réseau
@@ -157,13 +160,13 @@ export const useStore = create<Store>()(
       // Déclenche la progression UI
       get().startProcessing();
       const approxTokens = Math.max(1, Math.round(first.size / 4));
-      get().appendLog("INFO", `Estimation tokens (PDF): ~${approxTokens.toLocaleString()} (ajustez selon vos PDF)`);
-      get().appendLog("INFO", "Modèle utilisé (tests): GPT-4o Mini");
-      get().appendLog("INFO", "Vérification solde: à effectuer côté serveur avant chaque lot");
+      get().appendLog("INFO", `Estimation tokens (PDF): ~${approxTokens.toLocaleString()}`);
+      // get().appendLog("INFO", "Modèle utilisé (tests): GPT-4o Mini");
+      // get().appendLog("INFO", "Vérification solde: à effectuer côté serveur avant chaque lot");
       const form = new FormData();
       form.append("file", first);
       const t0 = performance.now();
-      get().appendLog("DEBUG", "Appel /api/analyze → openai/gpt-4o-mini via OpenRouter");
+      get().appendLog("DEBUG", `Appel /api/analyze → provider=${provider}`);
       const res = await fetch("/api/analyze", {
         method: "POST",
         body: form,
