@@ -19,10 +19,19 @@ export type Metrics = {
   disk: number;
 };
 
+export type LogLevel = "INFO" | "WARNING" | "ERROR" | "DEBUG";
+
+export type LogEntry = {
+  id: string;
+  level: LogLevel;
+  message: string;
+  timestamp: number;
+};
+
 type Store = {
   files: File[];
   processing: boolean;
-  logs: string[];
+  logs: LogEntry[];
   activeTab: TabKey;
   provider: ProviderKey;
   useLLM: boolean;
@@ -34,6 +43,10 @@ type Store = {
   dark: boolean;
   summaryText: string;
   clientOrder: string;
+  logFilter: Record<LogLevel, boolean>;
+  logSearch: string;
+  autoScrollLogs: boolean;
+  logRotationMax: number;
 
   setFiles: (files: File[]) => void;
   clearFiles: () => void;
@@ -44,7 +57,11 @@ type Store = {
   setApiKey: (k: string) => void;
   startProcessing: () => void;
   retryProcessing: () => void;
-  appendLog: (line: string) => void;
+  appendLog: (level: LogLevel, message: string) => void;
+  clearLogs: () => void;
+  setLogFilter: (level: LogLevel, enabled: boolean) => void;
+  setLogSearch: (q: string) => void;
+  setAutoScrollLogs: (v: boolean) => void;
   setMonitoring: (v: boolean) => void;
   toggleDark: () => void;
   setClientOrder: (v: string) => void;
@@ -76,6 +93,10 @@ export const useStore = create<Store>()(
   dark: false,
   summaryText: "",
   clientOrder: "",
+  logFilter: { INFO: true, WARNING: true, ERROR: true, DEBUG: false },
+  logSearch: "",
+  autoScrollLogs: true,
+  logRotationMax: 1000,
 
   setFiles: (files) => set({ files }),
   clearFiles: () => set({ files: [] }),
@@ -87,7 +108,22 @@ export const useStore = create<Store>()(
   setMonitoring: (monitoring) => set({ monitoring }),
   toggleDark: () => set({ dark: !get().dark }),
 
-  appendLog: (line) => set({ logs: [...get().logs, line] }),
+  appendLog: (level, message) => {
+    const entry: LogEntry = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      level,
+      message,
+      timestamp: Date.now(),
+    };
+    const next = [...get().logs, entry];
+    const max = get().logRotationMax;
+    const rotated = next.length > max ? next.slice(next.length - max) : next;
+    set({ logs: rotated });
+  },
+  clearLogs: () => set({ logs: [] }),
+  setLogFilter: (level, enabled) => set({ logFilter: { ...get().logFilter, [level]: enabled } }),
+  setLogSearch: (q) => set({ logSearch: q }),
+  setAutoScrollLogs: (v) => set({ autoScrollLogs: v }),
 
   setClientOrder: (clientOrder) => set({ clientOrder }),
   setSummaryText: (summaryText) => set({ summaryText }),
@@ -105,37 +141,48 @@ export const useStore = create<Store>()(
         const order = name.slice(underscore + 1, end);
         if (order) set({ clientOrder: order });
       }
-      set({ activeTab: "summary" });
-      const { useLLM } = get();
-      get().appendLog(`[${new Date().toLocaleTimeString()}] Déclenchement analyse (bouton): ${first.name}`);
+      set({ activeTab: "logs" });
+      const { useLLM, provider } = get();
+      get().appendLog("INFO", `Déclenchement analyse: ${first.name}`);
+      get().appendLog("DEBUG", `Paramètres: useLLM=${useLLM}`);
+      const providerLabel = provider === "openrouter" ? "OpenRouter" : provider === "openai" ? "OpenAI" : provider === "anthropic" ? "Anthropic" : "Local";
+      get().appendLog("INFO", `Fournisseur LLM sélectionné: ${providerLabel}`);
+      // get().appendLog("INFO", "Modèle (tests): GPT-4o Mini");
       console.log("[analyzeFiles] start", { file: first.name, useLLM });
 
       // Si LLM désactivé, ne pas lancer progression ni appel réseau
       if (!useLLM) {
-        get().appendLog(`[${new Date().toLocaleTimeString()}] LLM désactivé, analyse ignorée`);
+        get().appendLog("WARNING", "LLM désactivé, analyse ignorée");
         console.log("[analyzeFiles] LLM disabled, skipping");
         return;
       }
 
       // Déclenche la progression UI
       get().startProcessing();
+      const approxTokens = Math.max(1, Math.round(first.size / 4));
+      get().appendLog("INFO", `Estimation tokens (PDF): ~${approxTokens.toLocaleString()}`);
+      // get().appendLog("INFO", "Modèle utilisé (tests): GPT-4o Mini");
+      // get().appendLog("INFO", "Vérification solde: à effectuer côté serveur avant chaque lot");
       const form = new FormData();
       form.append("file", first);
+      const t0 = performance.now();
+      get().appendLog("DEBUG", `Appel /api/analyze → provider=${provider}`);
       const res = await fetch("/api/analyze", {
         method: "POST",
         body: form,
       });
       if (!res.ok) {
         const text = await res.text();
-        throw new Error(`Échec analyse (${res.status}): ${text}`);
+        throw new Error(`HTTP ${res.status} ${res.statusText} - ${text}`);
       }
       const data = (await res.json()) as { summary: string };
       set({ summaryText: data.summary });
-      get().appendLog(`[${new Date().toLocaleTimeString()}] Analyse terminée`);
+      const dt = Math.round(performance.now() - t0);
+      get().appendLog("INFO", `Analyse terminée en ${dt} ms`);
       console.log("[analyzeFiles] done", { summaryLen: data.summary?.length });
     } catch (err: any) {
       const message = err?.message || String(err);
-      get().appendLog(`[${new Date().toLocaleTimeString()}] Erreur analyse: ${message}`);
+      get().appendLog("ERROR", `Erreur analyse: ${message}`);
       console.error("[analyzeFiles] error", err);
     }
   },
@@ -167,9 +214,9 @@ export const useStore = create<Store>()(
           s.id === current ? { ...s, status: "running" } : s
         ),
       });
-      get().appendLog(`[${new Date().toLocaleTimeString()}] Start: ${current}`);
+      get().appendLog("INFO", `Start: ${current}`);
       console.log("[progress] step start", current);
-      const timer = setTimeout(() => {
+      setTimeout(() => {
         if (fail && current === "analyze") {
           set({
             steps: get().steps.map((s) =>
@@ -177,9 +224,7 @@ export const useStore = create<Store>()(
             ),
             processing: false,
           });
-          get().appendLog(
-            `[${new Date().toLocaleTimeString()}] Error in ${current}`
-          );
+          get().appendLog("ERROR", `Erreur dans l'étape: ${current}`);
           console.error("[progress] step error", current);
           return;
         }
@@ -188,9 +233,7 @@ export const useStore = create<Store>()(
             s.id === current ? { ...s, status: "done" } : s
           ),
         });
-        get().appendLog(
-          `[${new Date().toLocaleTimeString()}] Done: ${current}`
-        );
+        get().appendLog("INFO", `Done: ${current}`);
         console.log("[progress] step done", current);
         idx += 1;
         runNext();
@@ -212,12 +255,12 @@ export const useStore = create<Store>()(
   },
 
   retryProcessing: () => {
-    set({
-      logs: [
-        ...get().logs,
-        `[${new Date().toLocaleTimeString()}] Retry requested`,
-      ],
-    });
+    set({ logs: [...get().logs, {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      level: "INFO",
+      message: "Retry requested",
+      timestamp: Date.now(),
+    }] });
     get().startProcessing();
   },
     }),
