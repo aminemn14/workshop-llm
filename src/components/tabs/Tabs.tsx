@@ -5,8 +5,9 @@ import {
   DocumentTextIcon,
   Cog6ToothIcon,
   ArrowDownTrayIcon,
-  BugAntIcon,
   ListBulletIcon,
+  CodeBracketIcon,
+  CurrencyDollarIcon,
 } from "@heroicons/react/24/outline";
 
 const tabs: { key: TabKey; label: string; icon: React.ComponentType<any> }[] = [
@@ -14,7 +15,8 @@ const tabs: { key: TabKey; label: string; icon: React.ComponentType<any> }[] = [
   { key: "config", label: "Configurations", icon: Cog6ToothIcon },
   { key: "preimport", label: "Pré-import", icon: ArrowDownTrayIcon },
   { key: "logs", label: "Logs", icon: ListBulletIcon },
-  { key: "debug", label: "Debug", icon: BugAntIcon },
+  { key: "json", label: "JSON", icon: CodeBracketIcon },
+  { key: "costs", label: "Coûts", icon: CurrencyDollarIcon },
 ];
 
 function TabContent() {
@@ -28,6 +30,13 @@ function TabContent() {
   const clearLogs = useStore((s) => s.clearLogs);
   const autoScroll = useStore((s) => s.autoScrollLogs);
   const setAutoScroll = useStore((s) => s.setAutoScrollLogs);
+  const llmMessages = useStore((s) => s.llmMessages);
+  const commandData = useStore((s) => s.commandData);
+  const usage = useStore((s) => s.usage);
+  const model = useStore((s) => s.model);
+  const costIn = useStore((s) => s.costInputUSD);
+  const costOut = useStore((s) => s.costOutputUSD);
+  const costTotal = useStore((s) => s.costTotalUSD);
 
   const containerRef = useRef<HTMLDivElement | null>(null);
 
@@ -136,8 +145,52 @@ function TabContent() {
           </div>
         </div>
       )}
-      {active === "debug" && (
-        <div className="text-sm">Outils de debug et rapport détaillé.</div>
+      {active === "json" && (
+        <div className="grid grid-cols-2 gap-3 text-xs">
+          <div className="card p-2 overflow-auto scrollbar min-h-[360px]">
+            <div className="font-medium mb-2">Messages LLM</div>
+            <pre className="whitespace-pre-wrap">{JSON.stringify(llmMessages, null, 2)}</pre>
+          </div>
+          <div className="card p-2 overflow-auto scrollbar min-h-[360px]">
+            <div className="font-medium mb-2">Données commande</div>
+            <pre className="whitespace-pre-wrap">{JSON.stringify(commandData, null, 2)}</pre>
+          </div>
+        </div>
+      )}
+      {active === "costs" && (
+        <div className="space-y-3 text-sm">
+          <div className="grid grid-cols-3 gap-3">
+            <div className="card p-3">
+              <div className="text-xs text-[var(--neutral)]">Modèle</div>
+              <div className="font-semibold">{model || "n/a"}</div>
+            </div>
+            <div className="card p-3">
+              <div className="text-xs text-[var(--neutral)]">Tokens prompt / output</div>
+              <div className="font-semibold">{usage ? `${usage.prompt_tokens} / ${usage.completion_tokens}` : "n/a"}</div>
+            </div>
+            <div className="card p-3">
+              <div className="text-xs text-[var(--neutral)]">Total tokens</div>
+              <div className="font-semibold">{usage ? usage.total_tokens : "n/a"}</div>
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="card p-3">
+              <div className="text-xs text-[var(--neutral)]">Coût input (USD)</div>
+              <div className="font-semibold">{costIn.toFixed(6)}</div>
+            </div>
+            <div className="card p-3">
+              <div className="text-xs text-[var(--neutral)]">Coût output (USD)</div>
+              <div className="font-semibold">{costOut.toFixed(6)}</div>
+            </div>
+            <div className="card p-3">
+              <div className="text-xs text-[var(--neutral)]">Coût total (USD)</div>
+              <div className="font-semibold">{costTotal.toFixed(6)}</div>
+            </div>
+          </div>
+          {!usage && (
+            <div className="text-xs text-[var(--neutral)]">Aucune donnée d'usage reçue pour cette requête.</div>
+          )}
+        </div>
       )}
     </div>
   );
