@@ -30,6 +30,7 @@ export default function LLMEnrichmentPanel() {
           value={provider}
           onChange={(e) => setProvider(e.target.value as ProviderKey)}
         >
+          <option value="openrouter">OpenRouter</option>
           <option value="openai">OpenAI</option>
           <option value="anthropic">Anthropic</option>
           <option value="local">Local</option>

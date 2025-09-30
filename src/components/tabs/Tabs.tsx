@@ -19,12 +19,17 @@ const tabs: { key: TabKey; label: string; icon: React.ComponentType<any> }[] = [
 function TabContent() {
   const active = useStore((s) => s.activeTab);
   const logs = useStore((s) => s.logs);
+  const summaryText = useStore((s) => s.summaryText);
   return (
     <div className="card p-3 min-h-[420px] overflow-auto scrollbar">
       {active === "summary" && (
-        <div className="text-sm text-[var(--neutral)]">
-          Résumé automatique des résultats. Sélectionnez des fichiers et lancez
-          le traitement.
+        <div className="text-sm whitespace-pre-wrap">
+          {summaryText || (
+            <span className="text-[var(--neutral)]">
+              Résumé automatique des résultats. Sélectionnez un PDF pour lancer
+              l'analyse et afficher le résumé ici.
+            </span>
+          )}
         </div>
       )}
       {active === "config" && (
