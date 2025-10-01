@@ -30,7 +30,7 @@ function TabContent() {
   const clearLogs = useStore((s) => s.clearLogs);
   const autoScroll = useStore((s) => s.autoScrollLogs);
   const setAutoScroll = useStore((s) => s.setAutoScrollLogs);
-  const llmMessages = useStore((s) => s.llmMessages);
+  // llmMessages retiré: non utilisé dans l'UI actuelle
   const commandData = useStore((s) => s.commandData);
   const usage = useStore((s) => s.usage);
   const model = useStore((s) => s.model);
@@ -69,8 +69,12 @@ function TabContent() {
     URL.revokeObjectURL(url);
   };
 
-  const levelClass = (lvl: LogLevel) =>
-    lvl === "ERROR" ? "text-red-600" : lvl === "WARNING" ? "text-amber-600" : lvl === "DEBUG" ? "text-gray-500" : "text-green-600";
+  const levelClass = (lvl: LogLevel) => {
+    if (lvl === "ERROR") return "text-red-600";
+    if (lvl === "WARNING") return "text-amber-600";
+    if (lvl === "DEBUG") return "text-gray-500";
+    return "text-green-600";
+  };
 
   return (
     <div className="card p-3 min-h-[420px] overflow-hidden">
@@ -125,7 +129,7 @@ function TabContent() {
             />
             <label className="flex items-center gap-1">
               <input type="checkbox" checked={autoScroll} onChange={(e) => setAutoScroll(e.target.checked)} />
-              Auto-scroll
+              <span>Auto-scroll</span>
             </label>
             <button className="btn btn-gray" onClick={clearLogs}>Vider</button>
             <button className="btn btn-gray" onClick={onExport}>Exporter</button>
@@ -147,10 +151,6 @@ function TabContent() {
       )}
       {active === "json" && (
         <div className="gap-3 text-xs">
-          {/* <div className="card p-2 overflow-auto scrollbar min-h-[360px]">
-            <div className="font-medium mb-2">Messages LLM</div>
-            <pre className="whitespace-pre-wrap">{JSON.stringify(llmMessages, null, 2)}</pre>
-          </div> */}
           <div className="card p-2 overflow-auto scrollbar min-h-[360px]">
             <div className="font-medium mb-2">Données commande</div>
             <pre className="whitespace-pre-wrap">{JSON.stringify(commandData, null, 2)}</pre>
