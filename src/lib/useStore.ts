@@ -3,6 +3,33 @@ import { persist, createJSONStorage } from "zustand/middleware";
 import { ApiKeyService } from "@/lib/api-keys";
 import { LLMProvider } from "@/types/api-keys";
 import { createClient } from "@/lib/supabase/client";
+import { getWeekNumber, getWeekBounds, parseDateLoose } from "@/lib/time";
+
+// Utils date: parsing et bornes de semaine (lundi/vendredi)
+function parseDate(input: string): Date {
+  // formats attendus: DD/MM/YYYY ou YYYY-MM-DD
+  const slash = /^\s*(\d{1,2})\/(\d{1,2})\/(\d{4})\s*$/;
+  const dash = /^\s*(\d{4})-(\d{1,2})-(\d{1,2})\s*$/;
+  let y = 0, m = 0, d = 0;
+  if (slash.test(input)) {
+    const [, dd, mm, yyyy] = input.match(slash)!;
+    d = Number(dd);
+    m = Number(mm) - 1;
+    y = Number(yyyy);
+    return new Date(y, m, d);
+  }
+  if (dash.test(input)) {
+    const [, yyyy, mm, dd] = input.match(dash)!;
+    d = Number(dd);
+    m = Number(mm) - 1;
+    y = Number(yyyy);
+    return new Date(y, m, d);
+  }
+  const t = Date.parse(input);
+  return isNaN(t) ? new Date() : new Date(t);
+}
+
+//
 
 export type StepStatus = "idle" | "running" | "done" | "error";
 
@@ -94,6 +121,7 @@ type Store = {
   toggleSelectionItem: (index: number, checked: boolean) => void;
   confirmSelection: () => void;
   cancelSelection: () => void;
+  generateExportPreview: () => void;
   setUsageAndCosts: (usage: { prompt_tokens: number; completion_tokens: number; total_tokens: number } | null, model?: string | null) => void;
   analyzeFiles: (files: File[]) => Promise<void>;
   completeProcessingSuccess: () => void;
@@ -285,10 +313,35 @@ export const useStore = create<Store>()(
     const filteredArticles = originalArticles.filter((_, idx) => selectedIndexes.includes(idx));
     const filteredData = { ...(pending as Record<string, unknown>), articles: filteredArticles } as Record<string, unknown>;
     set({ commandData: filteredData, pendingUploadData: null, selectionOpen: false });
+    // Aperçu console pour l'export (sera remplacé par un export Excel plus tard)
+    get().generateExportPreview();
   },
 
   cancelSelection: () => {
     set({ pendingUploadData: null, selectionOpen: false, selectionItems: [] });
+  },
+
+  // Prépare un JSON par produit avec client, ville, semaine, début et fin
+  generateExportPreview: () => {
+    const data = get().commandData as any;
+    const client = data?.client ?? {};
+    const clientName = String(client?.nom ?? "");
+    const clientCity = String(client?.adresse ?? "").split(",").slice(-1)[0]?.trim() ?? "";
+    const orderDateStr = String(data?.commande?.date ?? "");
+    const parsed = orderDateStr ? parseDateLoose(orderDateStr) : new Date();
+    const week = getWeekNumber(parsed);
+    const { monday, friday } = getWeekBounds(parsed);
+
+    const articles = Array.isArray(data?.articles) ? data.articles : [];
+    const rows = articles.map((a: any) => ({
+      produit: String(a?.description ?? a?.type ?? ""),
+      client_nom: clientName,
+      client_ville: clientCity,
+      semaine: week,
+      debut: monday.toISOString().slice(0, 10),
+      fin: friday.toISOString().slice(0, 10),
+    }));
+    console.log(JSON.stringify(rows, null, 2));
   },
 
   setUsageAndCosts: (usage, model) => {
@@ -307,7 +360,7 @@ export const useStore = create<Store>()(
       costOut = (usage.completion_tokens / 1_000_000) * pricing.outputUSD;
       total = costIn + costOut;
     }
-    set({ usage: usage || null, model: selectedModel, costInputUSD: costIn, costOutputUSD: costOut, costTotalUSD: total });
+    set({ usage: usage ?? null, model: selectedModel, costInputUSD: costIn, costOutputUSD: costOut, costTotalUSD: total });
   },
 
   analyzeFiles: async (files: File[]) => {
