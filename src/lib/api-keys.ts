@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/client';
+import { SupabaseClient } from '@supabase/supabase-js';
 import { ApiKey, CreateApiKeyRequest, ApiKeyResponse, LLMProvider } from '@/types/api-keys';
 import { SimpleEncryption } from './encryption';
 
@@ -27,12 +28,12 @@ export class ApiKeyService {
   }
 
   // Récupérer une clé API pour un provider spécifique
-  static async getApiKeyForProvider(provider: LLMProvider): Promise<string | null> {
+  static async getApiKeyForProvider(provider: LLMProvider, supabase: SupabaseClient): Promise<string | null> {
     try {
-      const { data: { user } } = await this.supabase.auth.getUser();
+      const { data: { user } } = await supabase.auth.getUser();
       if (!user) return null;
 
-      const { data, error } = await this.supabase
+      const { data, error } = await supabase
         .from('api_keys')
         .select('api_key_encrypted')
         .eq('user_id', user.id)

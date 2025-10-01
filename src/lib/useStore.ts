@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { ApiKeyService } from "@/lib/api-keys";
 import { LLMProvider } from "@/types/api-keys";
+import { createClient } from "@/lib/supabase/client";
 
 export type StepStatus = "idle" | "running" | "done" | "error";
 
@@ -155,7 +156,8 @@ export const useStore = create<Store>()(
   loadApiKeyForProvider: async (provider) => {
     try {
       set({ apiKeyLoading: true, apiKeyError: null });
-      const apiKey = await ApiKeyService.getApiKeyForProvider(provider);
+      const supabase = createClient();
+      const apiKey = await ApiKeyService.getApiKeyForProvider(provider, supabase);
       set({ apiKey: apiKey || "", apiKeyLoading: false });
     } catch (error) {
       console.error('Erreur lors du chargement de la clé API:', error);
@@ -292,6 +294,7 @@ export const useStore = create<Store>()(
       // get().appendLog("INFO", "Vérification solde: à effectuer côté serveur avant chaque lot");
       const form = new FormData();
       form.append("file", first);
+      form.append("provider", provider);
       const t0 = performance.now();
       get().appendLog("DEBUG", `Appel /api/analyze → provider=${provider}`);
       const res = await fetch("/api/analyze", {

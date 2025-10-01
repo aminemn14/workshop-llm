@@ -1,3 +1,6 @@
+import { ApiKeyService } from "@/lib/api-keys";
+import { createClient } from "@/lib/supabase/server";
+import { LLMProvider } from "@/types/api-keys";
 import { NextRequest, NextResponse } from "next/server";
 
 // On utilise un runtime Node pour pouvoir parser les PDF côté serveur
@@ -7,15 +10,27 @@ export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
     const file = formData.get("file");
+    const provider = formData.get("provider") as LLMProvider;
     if (!(file instanceof Blob)) {
       return NextResponse.json({ error: "Fichier manquant" }, { status: 400 });
     }
 
-    const apiKey = process.env.OPENROUTER_API_KEY;
+    if (!provider) {
+      return NextResponse.json({ error: "Provider manquant" }, { status: 400 });
+    }
+
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      return NextResponse.json({ error: "Utilisateur non connecté" }, { status: 401 });
+    }
+
+    const apiKey = await ApiKeyService.getApiKeyForProvider(provider, supabase);
     if (!apiKey) {
       return NextResponse.json(
-        { error: "OPENROUTER_API_KEY non configurée" },
-        { status: 500 }
+        { error: `Aucune clé API configurée pour ${provider}` },
+        { status: 400 }
       );
     }
 

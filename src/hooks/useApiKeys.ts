@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { ApiKeyService } from '@/lib/api-keys';
 import { ApiKey, CreateApiKeyRequest, LLMProvider } from '@/types/api-keys';
+import { createClient } from '@/lib/supabase/client';
 
 export function useApiKeys() {
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
@@ -96,7 +97,8 @@ export function useApiKey(provider: LLMProvider) {
     try {
       setLoading(true);
       setError(null);
-      const key = await ApiKeyService.getApiKeyForProvider(provider);
+      const supabase = createClient();
+      const key = await ApiKeyService.getApiKeyForProvider(provider, supabase);
       setApiKey(key);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur lors du chargement');
