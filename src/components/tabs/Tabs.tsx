@@ -79,7 +79,7 @@ function TabContent() {
           {summaryText || (
             <span className="text-[var(--neutral)]">
               Résumé automatique des résultats. Sélectionnez un PDF pour lancer
-              l'analyse et afficher le résumé ici.
+              l&apos;analyse et afficher le résumé ici.
             </span>
           )}
         </div>
@@ -92,7 +92,7 @@ function TabContent() {
       )}
       {active === "preimport" && (
         <div className="text-sm">
-          Préparation de l'import des PDF, normalisation des données.
+          Préparation de l&apos;import des PDF, normalisation des données.
         </div>
       )}
       {active === "logs" && (
@@ -188,7 +188,7 @@ function TabContent() {
             </div>
           </div>
           {!usage && (
-            <div className="text-xs text-[var(--neutral)]">Aucune donnée d'usage reçue pour cette requête.</div>
+            <div className="text-xs text-[var(--neutral)]">Aucune donnée d&apos;usage reçue pour cette requête.</div>
           )}
         </div>
       )}

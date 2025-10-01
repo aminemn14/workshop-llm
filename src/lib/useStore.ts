@@ -238,14 +238,49 @@ export const useStore = create<Store>()(
       
       if (data.results.length > 0) {
         const firstResult = data.results[0];
-        set({ summaryText: firstResult.texte_extrait });
-        
-        // Utiliser les nouvelles données pour l'onglet JSON
+        // Ne pas afficher le texte brut extrait
+        // Mettre uniquement les données structurées et coûts
         get().setLLMData(
           [], // Pas de messages séparés, on utilise llm_data directement
           firstResult.llm_data ?? {}
         );
         get().setUsageAndCosts(firstResult.usage || null, firstResult.model || undefined);
+      }
+      
+      // 2) Appel complémentaire à /api/analyze pour remplir le résumé LLM
+      try {
+        get().appendLog("DEBUG", "Appel /api/analyze");
+        const analyzeForm = new FormData();
+        analyzeForm.append("file", first);
+        const analyzeRes = await fetch("/api/analyze", {
+          method: "POST",
+          body: analyzeForm,
+        });
+        if (!analyzeRes.ok) {
+          const txt = await analyzeRes.text();
+          throw new Error(`HTTP ${analyzeRes.status} ${analyzeRes.statusText} - ${txt}`);
+        }
+        const analyzeData = (await analyzeRes.json()) as {
+          summary: string;
+          messages: { role: "system" | "user" | "assistant"; content: string }[];
+          usage: { prompt_tokens: number; completion_tokens: number; total_tokens: number } | null;
+          model: string | null;
+          commandData: Record<string, unknown>;
+        };
+
+        // Remplir avec le résumé LLM
+        set({ summaryText: analyzeData.summary });
+
+        // Mettre à jour messages + données commande en fusionnant avec les données existantes (issues de /api/upload)
+        const previousCommandData = get().commandData || {};
+        const mergedCommandData = { ...previousCommandData, ...(analyzeData.commandData ?? {}) } as Record<string, unknown>;
+        get().setLLMData(analyzeData.messages ?? [], mergedCommandData);
+
+        // Mettre à jour usage + coûts depuis /api/analyze
+        get().setUsageAndCosts(analyzeData.usage || null, analyzeData.model || undefined);
+        get().appendLog("INFO", "Résumé LLM récupéré via /api/analyze");
+      } catch (e: any) {
+        get().appendLog("WARNING", `Analyse LLM (/api/analyze) ignorée: ${e?.message || String(e)}`);
       }
       
       const dt = Math.round(performance.now() - t0);
