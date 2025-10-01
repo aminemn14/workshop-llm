@@ -27,7 +27,7 @@ export default function ProfilePage() {
 
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md mx-auto">
+      <div className="max-w-2xl mx-auto">
         <div className="bg-white shadow rounded-lg p-6">
           <div className="text-center">
             <div className="mx-auto h-20 w-20 bg-indigo-100 rounded-full flex items-center justify-center">
