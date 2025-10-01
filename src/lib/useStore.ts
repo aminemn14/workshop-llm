@@ -130,7 +130,7 @@ export const useStore = create<Store>()(
   setFiles: (files) => set({ files }),
   clearFiles: () => set({ files: [] }),
   setActiveTab: (activeTab) => set({ activeTab }),
-  setProvider: async (provider) => {
+  setProvider: (provider) => {
     const currentProvider = get().provider;
     
     // Éviter les appels inutiles si le provider n'a pas changé
@@ -138,14 +138,15 @@ export const useStore = create<Store>()(
     
     set({ provider });
     
-    try {
-      // Définir le provider comme actif en base de données
-      await get().setActiveProvider(provider);
-      // Charger automatiquement la clé API pour le nouveau provider
-      await get().loadApiKeyForProvider(provider);
-    } catch (error) {
-      console.error('Erreur lors du changement de provider:', error);
-    }
+    // Définir le provider actif et charger la clé API en tâche de fond
+    (async () => {
+      try {
+        await get().setActiveProvider(provider);
+        await get().loadApiKeyForProvider(provider);
+      } catch (error) {
+        console.error('Erreur lors du changement de provider:', error);
+      }
+    })();
   },
   setShowApiKey: (showApiKey) => set({ showApiKey }),
   setApiKey: (apiKey) => set({ apiKey }),
@@ -293,7 +294,13 @@ export const useStore = create<Store>()(
       
       const form = new FormData();
       form.append("file", first);
-      form.append("provider", provider);
+      // Compatibilité /api/upload: activer l'enrichissement et préciser le provider attendu
+      form.append("enrich_llm", "yes");
+      form.append("llm_provider", provider);
+      // Si OpenRouter est choisi et qu'une clé est chargée côté client, la transmettre (fallback si le serveur n'utilise pas ApiKeyService)
+      if (provider === LLMProvider.OPENROUTER && get().apiKey) {
+        form.append("openrouter_api_key", get().apiKey);
+      }
       const t0 = performance.now();
       get().appendLog("DEBUG", `Appel /api/upload → provider=${provider}`);
       const res = await fetch("/api/upload", {
@@ -331,7 +338,7 @@ export const useStore = create<Store>()(
           [], // Pas de messages séparés, on utilise llm_data directement
           firstResult.llm_data ?? {}
         );
-        get().setUsageAndCosts(firstResult.usage || null, firstResult.model || undefined);
+        get().setUsageAndCosts(firstResult.usage ?? null, firstResult.model ?? undefined);
       }
       
       // 2) Appel complémentaire à /api/analyze pour remplir le résumé LLM
@@ -365,7 +372,7 @@ export const useStore = create<Store>()(
         get().setLLMData(analyzeData.messages ?? [], mergedCommandData);
 
         // Mettre à jour usage + coûts depuis /api/analyze
-        get().setUsageAndCosts(analyzeData.usage || null, analyzeData.model || undefined);
+        get().setUsageAndCosts(analyzeData.usage ?? null, analyzeData.model ?? undefined);
         get().appendLog("INFO", "Résumé LLM récupéré via /api/analyze");
       } catch (e: any) {
         get().appendLog("WARNING", `Analyse LLM (/api/analyze) ignorée: ${e?.message || String(e)}`);
@@ -420,17 +427,10 @@ export const useStore = create<Store>()(
         runNext();
       }, durations[idx]);
 
-      // metrics drift
+      // metrics drift (non bloquant)
       const m = get().metrics;
-      const jitter = () =>
-        Math.max(0, Math.min(100, Math.round((Math.random() - 0.5) * 10)));
-      set({
-        metrics: {
-          cpu: Math.min(100, m.cpu + jitter()),
-          ram: Math.min(100, m.ram + jitter()),
-          disk: Math.min(100, m.disk + jitter()),
-        },
-      });
+      const delta = Math.max(0, Math.min(100, Math.round((Math.random() - 0.5) * 10)));
+      set({ metrics: { cpu: Math.min(100, m.cpu + delta), ram: Math.min(100, m.ram + delta), disk: Math.min(100, m.disk + delta) } });
     };
     runNext();
   },

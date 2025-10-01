@@ -11,11 +11,11 @@ export default function Page() {
     <AuthGuard>
       <div className="min-h-screen flex flex-col bg-[var(--bg)]">
         <TopBar />
-        <div className="flex-1 grid grid-cols-[minmax(420px,34%)_1fr] gap-4 p-4 xl:p-6">
+          <div className="flex-1 grid grid-cols-1 lg:grid-cols-[minmax(420px,34%)_1fr] gap-4 p-4 xl:p-6">
           <div className="h-[calc(100vh-44px-56px)] xl:h-[calc(100vh-44px-60px)] overflow-y-auto scrollbar hidden lg:block">
             <SidePanel />
           </div>
-          <div className="min-h-[420px]">
+          <div className="min-h-[320px] sm:min-h-[420px]">
             <ResultsPanel />
           </div>
         </div>
