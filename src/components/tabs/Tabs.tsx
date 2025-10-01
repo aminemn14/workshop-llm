@@ -79,7 +79,7 @@ function TabContent() {
           {summaryText || (
             <span className="text-[var(--neutral)]">
               Résumé automatique des résultats. Sélectionnez un PDF pour lancer
-              l'analyse et afficher le résumé ici.
+              l&apos;analyse et afficher le résumé ici.
             </span>
           )}
         </div>
@@ -92,7 +92,7 @@ function TabContent() {
       )}
       {active === "preimport" && (
         <div className="text-sm">
-          Préparation de l'import des PDF, normalisation des données.
+          Préparation de l&apos;import des PDF, normalisation des données.
         </div>
       )}
       {active === "logs" && (
@@ -146,11 +146,11 @@ function TabContent() {
         </div>
       )}
       {active === "json" && (
-        <div className="grid grid-cols-2 gap-3 text-xs">
-          <div className="card p-2 overflow-auto scrollbar min-h-[360px]">
+        <div className="gap-3 text-xs">
+          {/* <div className="card p-2 overflow-auto scrollbar min-h-[360px]">
             <div className="font-medium mb-2">Messages LLM</div>
             <pre className="whitespace-pre-wrap">{JSON.stringify(llmMessages, null, 2)}</pre>
-          </div>
+          </div> */}
           <div className="card p-2 overflow-auto scrollbar min-h-[360px]">
             <div className="font-medium mb-2">Données commande</div>
             <pre className="whitespace-pre-wrap">{JSON.stringify(commandData, null, 2)}</pre>
@@ -188,7 +188,7 @@ function TabContent() {
             </div>
           </div>
           {!usage && (
-            <div className="text-xs text-[var(--neutral)]">Aucune donnée d'usage reçue pour cette requête.</div>
+            <div className="text-xs text-[var(--neutral)]">Aucune donnée d&apos;usage reçue pour cette requête.</div>
           )}
         </div>
       )}
