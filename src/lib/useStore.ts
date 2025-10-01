@@ -79,6 +79,8 @@ type Store = {
   setLLMData: (messages: { role: "system" | "user" | "assistant"; content: string }[], commandData: Record<string, unknown>) => void;
   setUsageAndCosts: (usage: { prompt_tokens: number; completion_tokens: number; total_tokens: number } | null, model?: string | null) => void;
   analyzeFiles: (files: File[]) => Promise<void>;
+  completeProcessingSuccess: () => void;
+  completeProcessingError: () => void;
 };
 
 const initialSteps: Step[] = [
@@ -181,33 +183,33 @@ export const useStore = create<Store>()(
         const order = name.slice(underscore + 1, end);
         if (order) set({ clientOrder: order });
       }
-      set({ activeTab: "logs" });
+      
       const { useLLM, provider } = get();
       get().appendLog("INFO", `Déclenchement analyse: ${first.name}`);
       get().appendLog("DEBUG", `Paramètres: useLLM=${useLLM}`);
-      const providerLabel = provider === "openrouter" ? "OpenRouter" : provider === "openai" ? "OpenAI" : provider === "anthropic" ? "Anthropic" : "Local";
+      let providerLabel = "Local";
+      if (provider === "openrouter") providerLabel = "OpenRouter";
+      else if (provider === "openai") providerLabel = "OpenAI";
+      else if (provider === "anthropic") providerLabel = "Anthropic";
       get().appendLog("INFO", `Fournisseur LLM sélectionné: ${providerLabel}`);
-      // get().appendLog("INFO", "Modèle (tests): GPT-4o Mini");
       console.log("[analyzeFiles] start", { file: first.name, useLLM });
-
-      // Si LLM désactivé, ne pas lancer progression ni appel réseau
-      if (!useLLM) {
-        get().appendLog("WARNING", "LLM désactivé, analyse ignorée");
-        console.log("[analyzeFiles] LLM disabled, skipping");
-        return;
-      }
 
       // Déclenche la progression UI
       get().startProcessing();
       const approxTokens = Math.max(1, Math.round(first.size / 4));
       get().appendLog("INFO", `Estimation tokens (PDF): ~${approxTokens.toLocaleString()}`);
-      // get().appendLog("INFO", "Modèle utilisé (tests): GPT-4o Mini");
-      // get().appendLog("INFO", "Vérification solde: à effectuer côté serveur avant chaque lot");
+      
       const form = new FormData();
-      form.append("file", first);
+      files.forEach(file => form.append("file", file));
+      form.append("enrich_llm", useLLM ? "yes" : "no");
+      form.append("llm_provider", provider === "openrouter" ? "openrouter" : "ollama");
+      if (provider === "openrouter" && get().apiKey) {
+        form.append("openrouter_api_key", get().apiKey);
+      }
+      
       const t0 = performance.now();
-      get().appendLog("DEBUG", `Appel /api/analyze → provider=${provider}`);
-      const res = await fetch("/api/analyze", {
+      get().appendLog("DEBUG", `Appel /api/upload → provider=${provider}`);
+      const res = await fetch("/api/upload", {
         method: "POST",
         body: form,
       });
@@ -216,26 +218,45 @@ export const useStore = create<Store>()(
         throw new Error(`HTTP ${res.status} ${res.statusText} - ${text}`);
       }
       const data = (await res.json()) as {
-        summary: string;
-        messages?: { role: "system" | "user" | "assistant"; content: string }[];
-        usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number };
-        model?: string;
-        commandData?: Record<string, unknown>;
+        results: Array<{
+          filename: string;
+          extraction_stats: { nb_caracteres: number; nb_mots: number; preview: string };
+          texte_extrait: string;
+          llm_result: string | null;
+          usage: any;
+          model: string | null;
+          llm_data: any;
+          donnees_client: any;
+          articles: any[];
+        }>;
+        errors: string[] | null;
       };
-      set({ summaryText: data.summary });
-      // Enregistrer JSON et coûts
-      get().setLLMData(
-        data.messages || [],
-        data.commandData || { orderId: get().clientOrder }
-      );
-      get().setUsageAndCosts(data.usage || null, data.model || undefined);
+      
+      if (data.errors && data.errors.length > 0) {
+        data.errors.forEach(error => get().appendLog("ERROR", error));
+      }
+      
+      if (data.results.length > 0) {
+        const firstResult = data.results[0];
+        set({ summaryText: firstResult.texte_extrait });
+        
+        // Utiliser les nouvelles données pour l'onglet JSON
+        get().setLLMData(
+          [], // Pas de messages séparés, on utilise llm_data directement
+          firstResult.llm_data ?? {}
+        );
+        get().setUsageAndCosts(firstResult.usage || null, firstResult.model || undefined);
+      }
+      
       const dt = Math.round(performance.now() - t0);
       get().appendLog("INFO", `Analyse terminée en ${dt} ms`);
-      console.log("[analyzeFiles] done", { summaryLen: data.summary?.length });
+      console.log("[analyzeFiles] done", { resultsCount: data.results.length });
+      get().completeProcessingSuccess();
     } catch (err: any) {
       const message = err?.message || String(err);
       get().appendLog("ERROR", `Erreur analyse: ${message}`);
       console.error("[analyzeFiles] error", err);
+      get().completeProcessingError();
     }
   },
 
@@ -249,17 +270,13 @@ export const useStore = create<Store>()(
       steps: initialSteps.map((s) => ({ ...s, status: "idle" })),
     });
     console.log("[progress] start");
-    const fail = Math.random() < 0.1;
-    const stepIds = ["prepare", "parse", "analyze", "finalize"] as const;
-    const durations = [800, 1200, 1500, 900];
+    // Exécuter seulement jusqu'à l'étape "analyze". "finalize" sera déclenchée lorsque les données seront prêtes.
+    const stepIds = ["prepare", "parse", "analyze"] as const;
+    const durations = [800, 1200, 1500];
     let idx = 0;
 
     const runNext = () => {
-      if (idx >= stepIds.length) {
-        set({ processing: false });
-        console.log("[progress] all done");
-        return;
-      }
+      if (idx >= stepIds.length) return;
       const current = stepIds[idx];
       set({
         steps: get().steps.map((s) =>
@@ -269,17 +286,6 @@ export const useStore = create<Store>()(
       get().appendLog("INFO", `Start: ${current}`);
       console.log("[progress] step start", current);
       setTimeout(() => {
-        if (fail && current === "analyze") {
-          set({
-            steps: get().steps.map((s) =>
-              s.id === current ? { ...s, status: "error" } : s
-            ),
-            processing: false,
-          });
-          get().appendLog("ERROR", `Erreur dans l'étape: ${current}`);
-          console.error("[progress] step error", current);
-          return;
-        }
         set({
           steps: get().steps.map((s) =>
             s.id === current ? { ...s, status: "done" } : s
@@ -304,6 +310,30 @@ export const useStore = create<Store>()(
       });
     };
     runNext();
+  },
+
+  // Marque la dernière étape comme DONE et termine le traitement
+  completeProcessingSuccess: () => {
+    set({
+      steps: get().steps.map((s) =>
+        s.id === "finalize" ? { ...s, status: "done" } : s
+      ),
+      processing: false,
+    });
+    get().appendLog("INFO", "Done: finalize");
+    console.log("[progress] finalize done");
+  },
+
+  // Marque la dernière étape comme ERROR et termine le traitement
+  completeProcessingError: () => {
+    set({
+      steps: get().steps.map((s) =>
+        s.id === "finalize" ? { ...s, status: "error" } : s
+      ),
+      processing: false,
+    });
+    get().appendLog("ERROR", "Erreur dans l'étape: finalize");
+    console.error("[progress] finalize error");
   },
 
   retryProcessing: () => {
