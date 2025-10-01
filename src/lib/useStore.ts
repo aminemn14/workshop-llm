@@ -339,6 +339,7 @@ export const useStore = create<Store>()(
         get().appendLog("DEBUG", "Appel /api/analyze");
         const analyzeForm = new FormData();
         analyzeForm.append("file", first);
+        analyzeForm.append("provider", provider);
         const analyzeRes = await fetch("/api/analyze", {
           method: "POST",
           body: analyzeForm,
