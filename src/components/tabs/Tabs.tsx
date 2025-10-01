@@ -9,6 +9,7 @@ import {
   CodeBracketIcon,
   CurrencyDollarIcon,
 } from "@heroicons/react/24/outline";
+import CalculatedParametersTable from "./InvoiceInfoTable";
 
 const tabs: { key: TabKey; label: string; icon: React.ComponentType<any> }[] = [
   { key: "summary", label: "Résumé", icon: DocumentTextIcon },
@@ -85,9 +86,11 @@ function TabContent() {
         </div>
       )}
       {active === "config" && (
-        <div className="text-sm">
-          Configurations actuelles. Ajustez les paramètres dans la colonne de
-          gauche.
+        <div className="space-y-4">
+          <div className="text-sm font-medium text-[var(--neutral)]">
+            Paramètres calculés automatiquement
+          </div>
+          <CalculatedParametersTable />
         </div>
       )}
       {active === "preimport" && (
