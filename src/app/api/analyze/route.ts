@@ -38,10 +38,11 @@ export async function POST(req: NextRequest) {
 
     // 2) Construire le prompt
     const system =
-      "Tu es un assistant d'analyse de factures. Extrait les informations clés (fournisseur, date, numéro de facture, total TTC, TVA, lignes principales) et fournis un résumé concis en français. Mets un accent particulier sur les PRODUITS COMMANDÉS: pour chaque ligne, donne le nom du produit, les quantités, le prix unitaire HT/TTC si disponible, le total ligne, les remises/options, l'éco-participation, et les mentions de livraison/installation. Structure la section produits en liste à puces claire et lisible.";
+      // "Tu es un assistant d'analyse de factures. Extrait les informations clés (fournisseur, date, numéro de facture, total TTC, TVA, lignes principales) et fournis un résumé concis en français. Mets un accent particulier sur les PRODUITS COMMANDÉS: pour chaque ligne, donne le nom du produit, les quantités, le prix unitaire HT/TTC si disponible, le total ligne, les remises/options, l'éco-participation, et les mentions de livraison/installation. Structure la section produits en liste à puces claire et lisible.";
+      "renvoie juste le nom du fichier";
 
     const userPrompt = trimmed
-      ? `Voici le texte extrait d'un PDF de facture. Analyse et produis un résumé court (5-8 lignes), clair et orienté métier.\n\nContraintes de présentation:\n- Commence par les informations générales (fournisseur, date, numéro, montants TTC/HT/TVA).\n- Ajoute ensuite une section 'Produits commandés' en liste à puces, détaillant pour chaque article: nom, quantité, prix unitaire HT/TTC si possible, total ligne, éco-participation, options/remises, et indications de livraison/installation.\n- Reste concis mais précis sur les produits.\n\nTEXTE PDF (tronqué si volumineux):\n\n${trimmed}`
+      ? `Voici le texte extrait d'un PDF de facture. Analyse et produis un résumé court (5-8 lignes), clair et orienté métier.\n\nContraintes de présentation:\n- Commence par les informations générales (fournisseur, date, numéro, montants TTC/HT/TVA) très simple et sur 2-3 lignes.\n- Ajoute ensuite une section 'Produits commandés' en liste à puces, détaillant profondément pour chaque article toutes les informations disponibles.\n- Reste très précis sur les produits.\n\nTEXTE PDF (tronqué si volumineux):\n\n${trimmed}`
       : `Je n'ai pas pu extraire le texte du PDF côté serveur. Donne un résumé générique attendu pour une facture (structure, informations à vérifier: fournisseur, date, numéro, montants TTC/HT/TVA, lignes), avec une section 'Produits commandés' en liste à puces détaillant nom, quantité, prix unitaire, total, éco-participation et livraison. Réponds en français en 5-8 lignes.`;
 
     // 3) Appel OpenRouter (format JSON OpenAI-compatible)
