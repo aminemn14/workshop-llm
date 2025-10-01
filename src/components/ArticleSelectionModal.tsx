@@ -1,6 +1,7 @@
 "use client";
-import React from "react";
+import React, { useState } from "react";
 import { useStore } from "@/lib/useStore";
+import { getIsoWeekYear, getWeekNumber } from "@/lib/time";
 
 export default function ArticleSelectionModal() {
   const open = useStore((s) => s.selectionOpen);
@@ -9,6 +10,9 @@ export default function ArticleSelectionModal() {
   const confirm = useStore((s) => s.confirmSelection);
   const cancel = useStore((s) => s.cancelSelection);
 
+  const [week, setWeek] = useState(getWeekNumber());
+  const [year, setYear] = useState(getIsoWeekYear());
+
   if (!open) return null;
 
   return (
@@ -16,6 +20,31 @@ export default function ArticleSelectionModal() {
       <button className="absolute inset-0 bg-black/40" onClick={cancel} aria-label="Fermer la modale" />
       <div className="relative card w-[min(680px,95vw)] max-h-[80vh] overflow-auto p-3">
         <div id="article-select-title" className="text-sm font-medium mb-2">Sélection des articles à inclure</div>
+        {/* choix semaine/année */}
+        <div className="flex gap-3 mb-3">
+          <div>
+            <label className="text-xs text-[var(--neutral)]">Semaine</label>
+            <input
+              type="number"
+              min={1}
+              max={53}
+              value={week}
+              onChange={e => setWeek(Number(e.target.value))}
+              className="card p-1 w-16 text-sm"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-[var(--neutral)]">Année</label>
+            <input
+              type="number"
+              min={2020}
+              max={2100}
+              value={year}
+              onChange={e => setYear(Number(e.target.value))}
+              className="card p-1 w-20 text-sm"
+            />
+          </div>
+        </div>
         <div className="text-xs text-[var(--neutral)] mb-3">
           Décochez les éléments à exclure de la version finale.
         </div>
