@@ -55,6 +55,11 @@ type Store = {
   // Données JSON/LLM
   llmMessages: { role: "system" | "user" | "assistant"; content: string }[];
   commandData: Record<string, unknown>;
+  // Données temporaires issues de l'upload (avant validation utilisateur)
+  pendingUploadData: Record<string, unknown> | null;
+  // État de la modale de sélection d'articles
+  selectionOpen: boolean;
+  selectionItems: { index: number; label: string; checked: boolean }[];
   usage: { prompt_tokens: number; completion_tokens: number; total_tokens: number } | null;
   model: string | null;
   // Coûts (calculés côté client, en USD)
@@ -84,6 +89,11 @@ type Store = {
   setClientOrder: (v: string) => void;
   setSummaryText: (v: string) => void;
   setLLMData: (messages: { role: "system" | "user" | "assistant"; content: string }[], commandData: Record<string, unknown>) => void;
+  // Sélection d'articles
+  openSelectionFromUpload: (uploadData: Record<string, unknown>) => void;
+  toggleSelectionItem: (index: number, checked: boolean) => void;
+  confirmSelection: () => void;
+  cancelSelection: () => void;
   setUsageAndCosts: (usage: { prompt_tokens: number; completion_tokens: number; total_tokens: number } | null, model?: string | null) => void;
   analyzeFiles: (files: File[]) => Promise<void>;
   completeProcessingSuccess: () => void;
@@ -121,6 +131,9 @@ export const useStore = create<Store>()(
   logRotationMax: 1000,
   llmMessages: [],
   commandData: {},
+  pendingUploadData: null,
+  selectionOpen: false,
+  selectionItems: [],
   usage: null,
   model: null,
   costInputUSD: 0,
@@ -247,6 +260,37 @@ export const useStore = create<Store>()(
 
   setLLMData: (messages, commandData) => set({ llmMessages: messages, commandData }),
 
+  // Ouvre la modale et prépare la liste d'articles à cocher
+  openSelectionFromUpload: (uploadData) => {
+    const articles = Array.isArray((uploadData as any)?.articles)
+      ? ((uploadData as any).articles as any[])
+      : [];
+    const items = articles.map((a, i) => ({
+      index: i,
+      label: String(a?.description || a?.type || `Article ${i + 1}`),
+      checked: true,
+    }));
+    set({ pendingUploadData: uploadData, selectionItems: items, selectionOpen: true });
+  },
+
+  toggleSelectionItem: (index, checked) => {
+    const items = get().selectionItems.map((it) => (it.index === index ? { ...it, checked } : it));
+    set({ selectionItems: items });
+  },
+
+  confirmSelection: () => {
+    const pending = get().pendingUploadData || {};
+    const selectedIndexes = get().selectionItems.filter((it) => it.checked).map((it) => it.index);
+    const originalArticles = Array.isArray((pending as any).articles) ? ((pending as any).articles as any[]) : [];
+    const filteredArticles = originalArticles.filter((_, idx) => selectedIndexes.includes(idx));
+    const filteredData = { ...(pending as Record<string, unknown>), articles: filteredArticles } as Record<string, unknown>;
+    set({ commandData: filteredData, pendingUploadData: null, selectionOpen: false });
+  },
+
+  cancelSelection: () => {
+    set({ pendingUploadData: null, selectionOpen: false, selectionItems: [] });
+  },
+
   setUsageAndCosts: (usage, model) => {
     const pricingPerMTokens: Record<string, { inputUSD: number; outputUSD: number }> = {
       // Prix par 1M tokens (valeurs indicatives, ajustables)
@@ -254,7 +298,7 @@ export const useStore = create<Store>()(
       "openai/gpt-4o": { inputUSD: 5.0, outputUSD: 15.0 },
     };
     const selectedModel = model ?? get().model ?? "openai/gpt-4o-mini";
-    const pricing = pricingPerMTokens[selectedModel] || { inputUSD: 0, outputUSD: 0 };
+    const pricing = pricingPerMTokens[selectedModel] ?? { inputUSD: 0, outputUSD: 0 };
     let costIn = 0;
     let costOut = 0;
     let total = 0;
@@ -271,7 +315,7 @@ export const useStore = create<Store>()(
     try {
       const first = files[0];
       // Extraire la commande après le premier underscore jusqu'à l'extension
-      const name = first.name || "";
+      const name = first.name ?? "";
       const underscore = name.indexOf("_");
       if (underscore >= 0) {
         const dot = name.lastIndexOf(".");
@@ -332,12 +376,10 @@ export const useStore = create<Store>()(
       
       if (data.results.length > 0) {
         const firstResult = data.results[0];
-        // Ne pas afficher le texte brut extrait
-        // Mettre uniquement les données structurées et coûts
-        get().setLLMData(
-          [], // Pas de messages séparés, on utilise llm_data directement
-          firstResult.llm_data ?? {}
-        );
+        // Ouvrir la modale de sélection avec les données d'upload (llm_data)
+        const uploadData = firstResult.llm_data ?? {};
+        get().openSelectionFromUpload(uploadData);
+        // Mettre à jour les coûts
         get().setUsageAndCosts(firstResult.usage ?? null, firstResult.model ?? undefined);
       }
       
@@ -369,13 +411,17 @@ export const useStore = create<Store>()(
         // Mettre à jour messages + données commande en fusionnant avec les données existantes (issues de /api/upload)
         const previousCommandData = get().commandData || {};
         const mergedCommandData = { ...previousCommandData, ...(analyzeData.commandData ?? {}) } as Record<string, unknown>;
+        // Si l'utilisateur a déjà filtré des articles, conserver cette sélection
+        if (Array.isArray((previousCommandData as any).articles)) {
+          (mergedCommandData as any).articles = (previousCommandData as any).articles;
+        }
         get().setLLMData(analyzeData.messages ?? [], mergedCommandData);
 
         // Mettre à jour usage + coûts depuis /api/analyze
         get().setUsageAndCosts(analyzeData.usage ?? null, analyzeData.model ?? undefined);
         get().appendLog("INFO", "Résumé LLM récupéré via /api/analyze");
       } catch (e: any) {
-        get().appendLog("WARNING", `Analyse LLM (/api/analyze) ignorée: ${e?.message || String(e)}`);
+        get().appendLog("WARNING", `Analyse LLM (/api/analyze) ignorée: ${e?.message ?? String(e)}`);
       }
       
       const dt = Math.round(performance.now() - t0);

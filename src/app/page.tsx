@@ -5,6 +5,7 @@ import SidePanel from "@/components/SidePanel";
 import ResultsPanel from "@/components/ResultsPanel";
 import FooterStatus from "@/components/FooterStatus";
 import AuthGuard from "@/components/AuthGuard";
+import ArticleSelectionModal from "@/components/ArticleSelectionModal";
 
 export default function Page() {
   return (
@@ -23,6 +24,7 @@ export default function Page() {
           <SidePanel accordion />
         </div>
         <FooterStatus />
+        <ArticleSelectionModal />
       </div>
     </AuthGuard>
   );
