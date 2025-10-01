@@ -1,5 +1,8 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
+import { ApiKeyService } from "@/lib/api-keys";
+import { LLMProvider } from "@/types/api-keys";
+import { createClient } from "@/lib/supabase/client";
 
 export type StepStatus = "idle" | "running" | "done" | "error";
 
@@ -11,7 +14,7 @@ export type Step = {
 
 export type TabKey = "summary" | "config" | "preimport" | "logs" | "json" | "costs";
 
-export type ProviderKey = "openai" | "anthropic" | "local" | "openrouter";
+export type ProviderKey = LLMProvider;
 
 export type Metrics = {
   cpu: number;
@@ -34,13 +37,14 @@ type Store = {
   logs: LogEntry[];
   activeTab: TabKey;
   provider: ProviderKey;
-  useLLM: boolean;
   showApiKey: boolean;
   apiKey: string;
   steps: Step[];
   metrics: Metrics;
   monitoring: boolean;
   dark: boolean;
+  apiKeyLoading: boolean;
+  apiKeyError: string | null;
   summaryText: string;
   clientOrder: string;
   logFilter: Record<LogLevel, boolean>;
@@ -62,7 +66,6 @@ type Store = {
   clearFiles: () => void;
   setActiveTab: (tab: TabKey) => void;
   setProvider: (p: ProviderKey) => void;
-  setUseLLM: (v: boolean) => void;
   setShowApiKey: (v: boolean) => void;
   setApiKey: (k: string) => void;
   startProcessing: () => void;
@@ -74,6 +77,10 @@ type Store = {
   setAutoScrollLogs: (v: boolean) => void;
   setMonitoring: (v: boolean) => void;
   toggleDark: () => void;
+  loadApiKeyForProvider: (provider: ProviderKey) => Promise<void>;
+  saveApiKey: (provider: ProviderKey, apiKey: string) => Promise<boolean>;
+  loadActiveProvider: () => Promise<void>;
+  setActiveProvider: (provider: ProviderKey) => Promise<boolean>;
   setClientOrder: (v: string) => void;
   setSummaryText: (v: string) => void;
   setLLMData: (messages: { role: "system" | "user" | "assistant"; content: string }[], commandData: Record<string, unknown>) => void;
@@ -97,14 +104,15 @@ export const useStore = create<Store>()(
   processing: false,
   logs: [],
   activeTab: "summary",
-  provider: "openrouter",
-  useLLM: true,
+  provider: LLMProvider.OPENAI,
   showApiKey: false,
   apiKey: "",
   steps: initialSteps,
   metrics: { cpu: 8, ram: 42, disk: 71 },
   monitoring: false,
   dark: false,
+  apiKeyLoading: false,
+  apiKeyError: null,
   summaryText: "",
   clientOrder: "",
   logFilter: { INFO: true, WARNING: true, ERROR: true, DEBUG: false },
@@ -122,12 +130,99 @@ export const useStore = create<Store>()(
   setFiles: (files) => set({ files }),
   clearFiles: () => set({ files: [] }),
   setActiveTab: (activeTab) => set({ activeTab }),
-  setProvider: (provider) => set({ provider }),
-  setUseLLM: (useLLM) => set({ useLLM }),
+  setProvider: async (provider) => {
+    const currentProvider = get().provider;
+    
+    // Éviter les appels inutiles si le provider n'a pas changé
+    if (currentProvider === provider) return;
+    
+    set({ provider });
+    
+    try {
+      // Définir le provider comme actif en base de données
+      await get().setActiveProvider(provider);
+      // Charger automatiquement la clé API pour le nouveau provider
+      await get().loadApiKeyForProvider(provider);
+    } catch (error) {
+      console.error('Erreur lors du changement de provider:', error);
+    }
+  },
   setShowApiKey: (showApiKey) => set({ showApiKey }),
   setApiKey: (apiKey) => set({ apiKey }),
   setMonitoring: (monitoring) => set({ monitoring }),
   toggleDark: () => set({ dark: !get().dark }),
+
+  // Charger la clé API pour un provider spécifique
+  loadApiKeyForProvider: async (provider) => {
+    try {
+      set({ apiKeyLoading: true, apiKeyError: null });
+      const supabase = createClient();
+      const apiKey = await ApiKeyService.getApiKeyForProvider(provider, supabase);
+      set({ apiKey: apiKey || "", apiKeyLoading: false });
+    } catch (error) {
+      console.error('Erreur lors du chargement de la clé API:', error);
+      set({ 
+        apiKeyError: error instanceof Error ? error.message : 'Erreur lors du chargement',
+        apiKeyLoading: false 
+      });
+    }
+  },
+
+  // Sauvegarder une clé API
+  saveApiKey: async (provider, apiKey) => {
+    try {
+      set({ apiKeyLoading: true, apiKeyError: null });
+      const result = await ApiKeyService.saveApiKey({ provider, api_key: apiKey });
+      
+      if (result.success) {
+        set({ apiKey, apiKeyLoading: false });
+        return true;
+      } else {
+        set({ 
+          apiKeyError: result.error || 'Erreur lors de la sauvegarde',
+          apiKeyLoading: false 
+        });
+        return false;
+      }
+    } catch (error) {
+      set({ 
+        apiKeyError: error instanceof Error ? error.message : 'Erreur inconnue',
+        apiKeyLoading: false 
+      });
+      return false;
+    }
+  },
+
+  // Charger le provider actif au démarrage
+  loadActiveProvider: async () => {
+    try {
+      const { provider: currentProvider } = get();
+      // Éviter les appels si un provider est déjà défini
+      if (currentProvider && currentProvider !== 'openai') return;
+      
+      const activeProvider = await ApiKeyService.getActiveProvider();
+      if (activeProvider) {
+        set({ provider: activeProvider });
+        // Charger la clé API pour le provider actif
+        await get().loadApiKeyForProvider(activeProvider);
+      }
+    } catch (error) {
+      console.error('Erreur lors du chargement du provider actif:', error);
+    }
+  },
+
+  // Définir le provider actif
+  setActiveProvider: async (provider) => {
+    try {
+      const result = await ApiKeyService.setActiveProvider(provider);
+      return result.success;
+    } catch (error) {
+      console.error('Erreur lors de la définition du provider actif:', error);
+      return false;
+    }
+  },
+
+
 
   appendLog: (level, message) => {
     const entry: LogEntry = {
@@ -183,30 +278,22 @@ export const useStore = create<Store>()(
         const order = name.slice(underscore + 1, end);
         if (order) set({ clientOrder: order });
       }
-      
-      const { useLLM, provider } = get();
+      const { provider } = get();
       get().appendLog("INFO", `Déclenchement analyse: ${first.name}`);
-      get().appendLog("DEBUG", `Paramètres: useLLM=${useLLM}`);
-      let providerLabel = "Local";
-      if (provider === "openrouter") providerLabel = "OpenRouter";
-      else if (provider === "openai") providerLabel = "OpenAI";
-      else if (provider === "anthropic") providerLabel = "Anthropic";
-      get().appendLog("INFO", `Fournisseur LLM sélectionné: ${providerLabel}`);
-      console.log("[analyzeFiles] start", { file: first.name, useLLM });
 
-      // Déclenche la progression UI
+      get().appendLog("INFO", `Fournisseur LLM sélectionné: ${provider}`);
+      // get().appendLog("INFO", "Modèle (tests): GPT-4o Mini");
+      console.log("[analyzeFiles] start", { file: first.name });
+
+
+      // Déclenche la progression UI (jusqu'à l'étape analyze)
       get().startProcessing();
       const approxTokens = Math.max(1, Math.round(first.size / 4));
       get().appendLog("INFO", `Estimation tokens (PDF): ~${approxTokens.toLocaleString()}`);
       
       const form = new FormData();
-      files.forEach(file => form.append("file", file));
-      form.append("enrich_llm", useLLM ? "yes" : "no");
-      form.append("llm_provider", provider === "openrouter" ? "openrouter" : "ollama");
-      if (provider === "openrouter" && get().apiKey) {
-        form.append("openrouter_api_key", get().apiKey);
-      }
-      
+      form.append("file", first);
+      form.append("provider", provider);
       const t0 = performance.now();
       get().appendLog("DEBUG", `Appel /api/upload → provider=${provider}`);
       const res = await fetch("/api/upload", {
@@ -252,6 +339,7 @@ export const useStore = create<Store>()(
         get().appendLog("DEBUG", "Appel /api/analyze");
         const analyzeForm = new FormData();
         analyzeForm.append("file", first);
+        analyzeForm.append("provider", provider);
         const analyzeRes = await fetch("/api/analyze", {
           method: "POST",
           body: analyzeForm,
@@ -387,7 +475,6 @@ export const useStore = create<Store>()(
       partialize: (state) => ({
         // apiKey: state.apiKey,
         provider: state.provider,
-        useLLM: state.useLLM,
         dark: state.dark,
       }),
     }

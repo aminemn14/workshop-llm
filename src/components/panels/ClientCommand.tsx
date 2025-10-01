@@ -7,7 +7,7 @@ export default function ClientCommand() {
   const start = useStore((s) => s.analyzeFiles);
   const clientOrder = useStore((s) => s.clientOrder);
   const setClientOrder = useStore((s) => s.setClientOrder);
-  const useLLM = useStore((s) => s.useLLM);
+
   return (
     <div className="card p-3 space-y-2">
       <label htmlFor="cmd" className="text-sm">
@@ -28,11 +28,6 @@ export default function ClientCommand() {
       >
         {processing ? "Traitement..." : "Traiter fichiers"}
       </button>
-      {!useLLM && (
-        <div className="text-xs text-[var(--neutral)]">
-          Enrichissement LLM désactivé : l'analyse ne lancera pas la progression.
-        </div>
-      )}
     </div>
   );
 }
