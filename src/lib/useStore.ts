@@ -278,12 +278,17 @@ export const useStore = create<Store>()(
     set({ selectionItems: items });
   },
 
-  confirmSelection: () => {
+  confirmSelection: (week?: number, year?: number) => {
     const pending = get().pendingUploadData || {};
     const selectedIndexes = get().selectionItems.filter((it) => it.checked).map((it) => it.index);
     const originalArticles = Array.isArray((pending as any).articles) ? ((pending as any).articles as any[]) : [];
     const filteredArticles = originalArticles.filter((_, idx) => selectedIndexes.includes(idx));
-    const filteredData = { ...(pending as Record<string, unknown>), articles: filteredArticles } as Record<string, unknown>;
+    const filteredData = {
+      ...(pending as Record<string, unknown>),
+      articles: filteredArticles,
+      semaine: week ?? null,
+      annee: year ?? null,
+    } as Record<string, unknown>;
     set({ commandData: filteredData, pendingUploadData: null, selectionOpen: false });
   },
 

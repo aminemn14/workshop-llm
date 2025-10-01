@@ -66,7 +66,7 @@ export default function ArticleSelectionModal() {
         </div>
         <div className="flex justify-end gap-2">
           <button className="btn btn-gray" onClick={cancel}>Annuler</button>
-          <button className="btn btn-blue" onClick={confirm}>Confirmer</button>
+          <button className="btn btn-blue" onClick={() => confirm(week, year)}>Confirmer</button>
         </div>
       </div>
     </div>
