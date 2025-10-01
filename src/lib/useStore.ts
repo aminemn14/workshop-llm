@@ -183,33 +183,33 @@ export const useStore = create<Store>()(
         const order = name.slice(underscore + 1, end);
         if (order) set({ clientOrder: order });
       }
-      // set({ activeTab: "logs" });
+      
       const { useLLM, provider } = get();
       get().appendLog("INFO", `Déclenchement analyse: ${first.name}`);
       get().appendLog("DEBUG", `Paramètres: useLLM=${useLLM}`);
-      const providerLabel = provider === "openrouter" ? "OpenRouter" : provider === "openai" ? "OpenAI" : provider === "anthropic" ? "Anthropic" : "Local";
+      let providerLabel = "Local";
+      if (provider === "openrouter") providerLabel = "OpenRouter";
+      else if (provider === "openai") providerLabel = "OpenAI";
+      else if (provider === "anthropic") providerLabel = "Anthropic";
       get().appendLog("INFO", `Fournisseur LLM sélectionné: ${providerLabel}`);
-      // get().appendLog("INFO", "Modèle (tests): GPT-4o Mini");
       console.log("[analyzeFiles] start", { file: first.name, useLLM });
 
-      // Si LLM désactivé, ne pas lancer progression ni appel réseau
-      if (!useLLM) {
-        get().appendLog("WARNING", "LLM désactivé, analyse ignorée");
-        console.log("[analyzeFiles] LLM disabled, skipping");
-        return;
-      }
-
-      // Déclenche la progression UI (jusqu'à l'étape analyze)
+      // Déclenche la progression UI
       get().startProcessing();
       const approxTokens = Math.max(1, Math.round(first.size / 4));
       get().appendLog("INFO", `Estimation tokens (PDF): ~${approxTokens.toLocaleString()}`);
-      // get().appendLog("INFO", "Modèle utilisé (tests): GPT-4o Mini");
-      // get().appendLog("INFO", "Vérification solde: à effectuer côté serveur avant chaque lot");
+      
       const form = new FormData();
-      form.append("file", first);
+      files.forEach(file => form.append("file", file));
+      form.append("enrich_llm", useLLM ? "yes" : "no");
+      form.append("llm_provider", provider === "openrouter" ? "openrouter" : "ollama");
+      if (provider === "openrouter" && get().apiKey) {
+        form.append("openrouter_api_key", get().apiKey);
+      }
+      
       const t0 = performance.now();
-      get().appendLog("DEBUG", `Appel /api/analyze → provider=${provider}`);
-      const res = await fetch("/api/analyze", {
+      get().appendLog("DEBUG", `Appel /api/upload → provider=${provider}`);
+      const res = await fetch("/api/upload", {
         method: "POST",
         body: form,
       });
@@ -218,29 +218,79 @@ export const useStore = create<Store>()(
         throw new Error(`HTTP ${res.status} ${res.statusText} - ${text}`);
       }
       const data = (await res.json()) as {
-        summary: string;
-        messages?: { role: "system" | "user" | "assistant"; content: string }[];
-        usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number };
-        model?: string;
-        commandData?: Record<string, unknown>;
+        results: Array<{
+          filename: string;
+          extraction_stats: { nb_caracteres: number; nb_mots: number; preview: string };
+          texte_extrait: string;
+          llm_result: string | null;
+          usage: any;
+          model: string | null;
+          llm_data: any;
+          donnees_client: any;
+          articles: any[];
+        }>;
+        errors: string[] | null;
       };
-      set({ summaryText: data.summary });
-      // Enregistrer JSON et coûts
-      get().setLLMData(
-        data.messages || [],
-        data.commandData || { orderId: get().clientOrder }
-      );
-      get().setUsageAndCosts(data.usage || null, data.model || undefined);
+      
+      if (data.errors && data.errors.length > 0) {
+        data.errors.forEach(error => get().appendLog("ERROR", error));
+      }
+      
+      if (data.results.length > 0) {
+        const firstResult = data.results[0];
+        // Ne pas afficher le texte brut extrait
+        // Mettre uniquement les données structurées et coûts
+        get().setLLMData(
+          [], // Pas de messages séparés, on utilise llm_data directement
+          firstResult.llm_data ?? {}
+        );
+        get().setUsageAndCosts(firstResult.usage || null, firstResult.model || undefined);
+      }
+      
+      // 2) Appel complémentaire à /api/analyze pour remplir le résumé LLM
+      try {
+        get().appendLog("DEBUG", "Appel /api/analyze");
+        const analyzeForm = new FormData();
+        analyzeForm.append("file", first);
+        const analyzeRes = await fetch("/api/analyze", {
+          method: "POST",
+          body: analyzeForm,
+        });
+        if (!analyzeRes.ok) {
+          const txt = await analyzeRes.text();
+          throw new Error(`HTTP ${analyzeRes.status} ${analyzeRes.statusText} - ${txt}`);
+        }
+        const analyzeData = (await analyzeRes.json()) as {
+          summary: string;
+          messages: { role: "system" | "user" | "assistant"; content: string }[];
+          usage: { prompt_tokens: number; completion_tokens: number; total_tokens: number } | null;
+          model: string | null;
+          commandData: Record<string, unknown>;
+        };
+
+        // Remplir avec le résumé LLM
+        set({ summaryText: analyzeData.summary });
+
+        // Mettre à jour messages + données commande en fusionnant avec les données existantes (issues de /api/upload)
+        const previousCommandData = get().commandData || {};
+        const mergedCommandData = { ...previousCommandData, ...(analyzeData.commandData ?? {}) } as Record<string, unknown>;
+        get().setLLMData(analyzeData.messages ?? [], mergedCommandData);
+
+        // Mettre à jour usage + coûts depuis /api/analyze
+        get().setUsageAndCosts(analyzeData.usage || null, analyzeData.model || undefined);
+        get().appendLog("INFO", "Résumé LLM récupéré via /api/analyze");
+      } catch (e: any) {
+        get().appendLog("WARNING", `Analyse LLM (/api/analyze) ignorée: ${e?.message || String(e)}`);
+      }
+      
       const dt = Math.round(performance.now() - t0);
       get().appendLog("INFO", `Analyse terminée en ${dt} ms`);
-      console.log("[analyzeFiles] done", { summaryLen: data.summary?.length });
-      // Finaliser la progression UNIQUEMENT quand les données sont prêtes
+      console.log("[analyzeFiles] done", { resultsCount: data.results.length });
       get().completeProcessingSuccess();
     } catch (err: any) {
       const message = err?.message || String(err);
       get().appendLog("ERROR", `Erreur analyse: ${message}`);
       console.error("[analyzeFiles] error", err);
-      // Marquer la progression en erreur immédiatement
       get().completeProcessingError();
     }
   },
