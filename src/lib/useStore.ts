@@ -268,7 +268,7 @@ export const useStore = create<Store>()(
     const items = articles.map((a, i) => ({
       index: i,
       label: String(a?.description || a?.type || `Article ${i + 1}`),
-      checked: true,
+      checked: false,
     }));
     set({ pendingUploadData: uploadData, selectionItems: items, selectionOpen: true });
   },
