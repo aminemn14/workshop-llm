@@ -85,64 +85,64 @@ function TabContent() {
           )}
         </div>
       )}
-{active === "config" && (
-  <div className="space-y-4">
-    <div className="text-sm font-medium text-[var(--neutral)]">
-      Configurations extraites du PDF
-    </div>
-    {Array.isArray(commandData?.articles) && commandData.articles.length > 0 ? (
-      <div className="overflow-auto">
-        <table className="min-w-full border border-[var(--border)] rounded text-xs">
-          <thead className="bg-[var(--muted)]">
-            <tr>
-              <th className="p-2">Index</th>
-              <th className="p-2">Type</th>
-              <th className="p-2">Description</th>
-              <th className="p-2">Titre côté</th>
-              <th className="p-2">Information</th>
-              <th className="p-2">Quantité</th>
-              <th className="p-2">Dimensions</th>
-              <th className="p-2">Noyau</th>
-              <th className="p-2">Fermeté</th>
-              <th className="p-2">Housse</th>
-              <th className="p-2">Matière housse</th>
-              <th className="p-2">Autres caractéristiques</th>
-              <th className="p-2">Mode de mise à disposition</th>
-            </tr>
-          </thead>
-          <tbody>
-            {commandData.articles.map((matelas, idx) => (
-              <tr key={idx} className="border-t border-[var(--border)]">
-                <td className="p-2 text-center">{idx + 1}</td>
-                <td className="p-2">{matelas.type}</td>
-                <td className="p-2">{matelas.description}</td>
-                <td className="p-2">{matelas.titre_cote}</td>
-                <td className="p-2">{matelas.information}</td>
-                <td className="p-2 text-center">{matelas.quantite}</td>
-                <td className="p-2">{matelas.dimensions}</td>
-                <td className="p-2">{matelas.noyau}</td>
-                <td className="p-2">{matelas.fermete}</td>
-                <td className="p-2">{matelas.housse}</td>
-                <td className="p-2">{matelas.matiere_housse}</td>
-                <td className="p-2">{matelas.autres_caracteristiques ? JSON.stringify(matelas.autres_caracteristiques) : ""}</td>
-                <td className="p-2">
-                  {commandData?.mode_mise_a_disposition
-                    ? Object.entries(commandData.mode_mise_a_disposition)
-                        .map(([k, v]) => v ? `${k.replace("_C57", "").replace("_C58", "").replace("_C59", "")}: ${v}` : "")
-                        .filter(Boolean)
-                        .join(", ")
-                    : ""}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    ) : (
-      <div className="text-[var(--neutral)]">Aucune configuration extraite.</div>
-    )}
-  </div>
-)}
+      {active === "config" && (
+        <div className="space-y-4">
+          <div className="text-sm font-medium text-[var(--neutral)]">
+            Configurations extraites du PDF
+          </div>
+          {Array.isArray(commandData?.articles) && commandData.articles.length > 0 ? (
+            <div className="overflow-auto">
+              <table className="min-w-full border border-[var(--border)] rounded text-xs">
+                <thead className="bg-[var(--muted)]">
+                  <tr>
+                    <th className="p-2">Index</th>
+                    <th className="p-2">Type</th>
+                    <th className="p-2">Description</th>
+                    <th className="p-2">Titre côté</th>
+                    <th className="p-2">Information</th>
+                    <th className="p-2">Quantité</th>
+                    <th className="p-2">Dimensions</th>
+                    <th className="p-2">Noyau</th>
+                    <th className="p-2">Fermeté</th>
+                    <th className="p-2">Housse</th>
+                    <th className="p-2">Matière housse</th>
+                    <th className="p-2">Autres caractéristiques</th>
+                    <th className="p-2">Mode de mise à disposition</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {commandData.articles.map((matelas, idx) => (
+                    <tr key={idx} className="border-t border-[var(--border)]">
+                      <td className="p-2 text-center">{idx + 1}</td>
+                      <td className="p-2">{matelas.type}</td>
+                      <td className="p-2">{matelas.description}</td>
+                      <td className="p-2">{matelas.titre_cote}</td>
+                      <td className="p-2">{matelas.information}</td>
+                      <td className="p-2 text-center">{matelas.quantite}</td>
+                      <td className="p-2">{matelas.dimensions}</td>
+                      <td className="p-2">{matelas.noyau}</td>
+                      <td className="p-2">{matelas.fermete}</td>
+                      <td className="p-2">{matelas.housse}</td>
+                      <td className="p-2">{matelas.matiere_housse}</td>
+                      <td className="p-2">{matelas.autres_caracteristiques ? JSON.stringify(matelas.autres_caracteristiques) : ""}</td>
+                      <td className="p-2">
+                        {commandData?.mode_mise_a_disposition
+                          ? Object.entries(commandData.mode_mise_a_disposition)
+                              .map(([k, v]) => v ? `${k.replace("_C57", "").replace("_C58", "").replace("_C59", "")}: ${v}` : "")
+                              .filter(Boolean)
+                              .join(", ")
+                          : ""}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="text-[var(--neutral)]">Aucune configuration extraite.</div>
+          )}
+        </div>
+      )}
       {active === "preimport" && (
         <div className="text-sm">
           Préparation de l'import des PDF, normalisation des données.
